@@ -52,10 +52,11 @@ export default function ExperimentSection(props) {
               (experiment) => experiment.id.toString() === value
             );
             if (experiment) {
-              props.onChangeExperiment({
-                experimentId: experiment.id.toString(),
-                experimentKey: experiment.key.toString(),
-              });
+              // props.onChangeExperiment({
+              //   experimentId: experiment.id.toString(),
+              //   experimentKey: experiment.key.toString(),
+              // });
+              props.onChangeExperiment(experiment);
             }
           }
         }}

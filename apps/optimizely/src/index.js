@@ -40,9 +40,12 @@ if (window.location.hash) {
 const OPTIMIZELY_CLIENT_APP_ID = '15687650042';
 const HOST = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
 
+// const redirectUrl = HOST;
+const redirectUrl = 'https://optimizely.ctfapps.net/';
+
 const url = `https://app.optimizely.com/oauth2/authorize
 ?client_id=${OPTIMIZELY_CLIENT_APP_ID}
-&redirect_uri=${window.encodeURIComponent(HOST)}
+&redirect_uri=${window.encodeURIComponent(redirectUrl)}
 &response_type=token
 &scopes=all`;
 
@@ -82,16 +85,25 @@ export default class App extends React.Component {
         const { data, origin } = event;
         const { token, expires } = data;
 
-        if (`${origin}${window.location.pathname}` !== HOST || !token) {
+        // if (`${origin}${window.location.pathname}` !== HOST || !token) {
+        //   return;
+        // }
+        
+        if (`${origin}${window.location.pathname}` !== redirectUrl || !token) {
           return;
         }
-
+        
         window.localStorage.setItem(TOKEN_KEY, token);
         window.localStorage.setItem(TOKEN_EXPIRATION, expires);
         this.setState({ client: this.makeClient(data.token), accessToken: token, expires });
       },
       false
     );
+    // setTimeout(() => {
+    //   const token = window.localStorage.getItem(TOKEN_KEY);
+    //   const expires = window.localStorage.getItem(TOKEN_EXPIRATION);
+    //   this.setState({ client: this.makeClient(token), accessToken: token, expires });
+    // }, 10000);
   }
 
   makeClient = (token) => {
@@ -107,6 +119,8 @@ export default class App extends React.Component {
   openAuth = () => {
     const WINDOW_OPTS = 'left=150,top=150,width=700,height=700';
     window.open(url, '', WINDOW_OPTS);
+    // window.localStorage.setItem(TOKEN_KEY, '2:Ya2JGrejBI3pV0DLeme4DNKSIzmoIdv57hhOi0dj8LY7lroOjuPQ');
+    // window.localStorage.setItem(TOKEN_EXPIRATION, 100000000);
   };
 
   render() {
@@ -141,6 +155,8 @@ export default class App extends React.Component {
         return <IncorrectContentType sdk={sdk} missingFields={missingFields} />;
       }
 
+      console.log(sdk.parameters.installation);
+      
       return (
         <EditorPage
           sdk={sdk}

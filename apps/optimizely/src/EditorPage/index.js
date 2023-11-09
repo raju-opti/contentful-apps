@@ -14,6 +14,7 @@ import { SDKContext, GlobalStateContext } from './subcomponents/all-context';
 import prepareReferenceInfo, { COMBINED_LINK_VALIDATION_CONFLICT } from './reference-info';
 import useInterval from '@use-it/interval';
 import ConnectButton from '../ConnectButton';
+import { ProjectType } from '../constants';
 
 const styles = {
   root: css({
@@ -74,6 +75,7 @@ const getInitialValue = (sdk) => ({
   meta: sdk.entry.fields.meta.getValue() || {},
   variations: sdk.entry.fields.variations.getValue() || [],
   experimentId: sdk.entry.fields.experimentId.getValue(),
+  flagKey: sdk.entry.fields.flagKey.getValue(),
   entries: {},
   experimentsResults: {},
 });
@@ -116,10 +118,13 @@ const getEntriesLinkedByIds = async (space, entryIds) => {
 const fetchInitialData = async (sdk, client) => {
   const { space, ids, locales } = sdk;
 
+  const { optimizelyProjectType } = sdk.parameters.installation;
+
   const [contentTypesRes, entriesRes, experiments] = await Promise.all([
     space.getContentTypes({ order: 'name', limit: 1000 }),
     getEntriesLinkedByIds(space, ids.entry),
-    client.getExperiments(),
+    optimizelyProjectType === ProjectType.FeatureExperimentation ? 
+      client.getRules() : client.getExperiments(),
   ]);
 
   return {
@@ -166,17 +171,17 @@ export default function EditorPage(props) {
   /**
    * Pulling current experiment every 5s to get new status and variations
    */
-  useInterval(() => {
-    if (state.experimentId) {
-      props.client
-        .getExperiment(state.experimentId)
-        .then((experiment) => {
-          actions.updateExperiment(state.experimentId, experiment);
-          return experiment;
-        })
-        .catch(() => {});
-    }
-  }, 5000);
+  // useInterval(() => {
+  //   if (state.experimentId) {
+  //     props.client
+  //       .getExperiment(state.experimentId)
+  //       .then((experiment) => {
+  //         actions.updateExperiment(state.experimentId, experiment);
+  //         return experiment;
+  //       })
+  //       .catch(() => {});
+  //   }
+  // }, 5000);
 
   /*
    * Poll to see if we need to show the reauth flow preemptively
@@ -191,6 +196,7 @@ export default function EditorPage(props) {
   useEffect(() => {
     const unsubsribeExperimentChange = props.sdk.entry.fields.experimentId.onValueChanged(
       (data) => {
+        console.log('exp id change .. ', data);
         actions.setExperimentId(data);
       }
     );
@@ -198,6 +204,7 @@ export default function EditorPage(props) {
       actions.setVariations(data || []);
     });
     const unsubscribeMetaChange = props.sdk.entry.fields.meta.onValueChanged((data) => {
+      console.log('meta change .. ', data);
       actions.setMeta(data || {});
     });
     return () => {
@@ -211,6 +218,21 @@ export default function EditorPage(props) {
     props.sdk.entry.fields.meta,
     props.sdk.entry.fields.variations,
   ]);
+
+  /**
+   * fetch experiment variation and id for feature experimentation rules
+   */
+  useEffect(() => {
+    if (experiment && experiment.flag_key && !experiment.variations && state.loaded) {
+      props.client
+        .getVariations(experiment.flag_key)
+        .then((variations) => {
+          actions.setVariations(variations);
+          return variations;
+        })
+        .catch(() => {});
+    }
+  }, [experiment, experiment ? experiment.id : null]);
 
   /**
    * Update title every time experiment is changed
@@ -251,10 +273,24 @@ export default function EditorPage(props) {
    * Handlers
    */
 
-  const onChangeExperiment = (value) => {
-    props.sdk.entry.fields.meta.setValue({});
-    props.sdk.entry.fields.experimentId.setValue(value.experimentId);
-    props.sdk.entry.fields.experimentKey.setValue(value.experimentKey);
+  // const onChangeExperiment = (value) => {
+  //   props.sdk.entry.fields.meta.setValue({});
+  //   props.sdk.entry.fields.experimentId.setValue(value.experimentId);
+  //   props.sdk.entry.fields.experimentKey.setValue(value.experimentKey);
+  // };
+
+  const onChangeExperiment = (experiment) => {
+    console.log('exp selected ', experiment);
+    if (props.sdk.parameters.installation.optimizelyProjectType === ProjectType.FeatureExperimentation) {
+      props.sdk.entry.fields.meta.setValue({});
+      props.sdk.entry.fields.experimentId.setValue(experiment.id.toString());
+      props.sdk.entry.fields.experimentKey.setValue(experiment.key);
+      props.sdk.entry.fields.flagKey.setValue(experiment.flag_key);
+    } else {
+      props.sdk.entry.fields.meta.setValue({});
+      props.sdk.entry.fields.experimentId.setValue(experiment.experimentId.toString());
+      props.sdk.entry.fields.experimentKey.setValue(experiment.experimentKey);
+    }
   };
 
   const onLinkVariation = async (variation) => {

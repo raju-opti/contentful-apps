@@ -6,6 +6,8 @@ import {
   Paragraph,
   SkeletonContainer,
   SkeletonBodyText,
+  Spinner,
+  Flex
 } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { ExperimentType } from './prop-types';
@@ -68,6 +70,17 @@ export default function VariationsSection(props) {
     return (
       <Container>
         <Paragraph>To see variations, select an experiment.</Paragraph>
+      </Container>
+    );
+  }
+
+  if (props.experiment.flag_key && !props.experiment.variations) {
+    return (
+      <Container>
+         <Flex>
+          <>Loading Variations</>
+          <Spinner />
+        </Flex>
       </Container>
     );
   }

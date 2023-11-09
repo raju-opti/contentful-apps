@@ -7,11 +7,12 @@ export default class OptimizelyClient {
     this.accessToken = accessToken;
     this.project = project;
     this.baseURL = 'https://api.optimizely.com/v2';
+    this.fxBaseUrl = 'https://api.optimizely.com/flags/v1';
     this.onReauth = onReauth;
   }
 
   makeRequest = async (url) => {
-    const response = await fetch(`${this.baseURL}${url}`, {
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
       },
@@ -21,11 +22,13 @@ export default class OptimizelyClient {
       return await response.json();
     }
 
+    console.log(response);
+
     // reauthing should hopefully fix the issue
     this.onReauth();
   };
 
-  _getItemsPerPage = async (item) => {
+  _getItemsPerPage = async (item, isFx) => {
     let items = [];
     const PER_PAGE = 100;
     const MAX_REQUESTS = 10;
@@ -63,9 +66,9 @@ export default class OptimizelyClient {
   _getItemsUrl = (perPage, page, item) => {
     switch (item) {
       case 'project':
-        return `/projects?per_page=${perPage.toString()}&page=${page.toString()}`;
+        return `${this.baseURL}/projects?per_page=${perPage.toString()}&page=${page.toString()}`;
       case 'experiment':
-        return `/experiments?project_id=${
+        return `${this.baseURL}/experiments?project_id=${
           this.project
         }&per_page=${perPage.toString()}&page=${page.toString()}`;
       default:
@@ -78,15 +81,41 @@ export default class OptimizelyClient {
   }
 
   getExperiment = (experimentId) => {
-    return this.makeRequest(`/experiments/${experimentId}`);
+    return this.makeRequest(`${this.baseURL}/experiments/${experimentId}`);
   };
 
   getExperiments = async () => {
     return this._getItemsPerPage('experiment');
   };
 
+  getRules = async () => {
+    let url = `/projects/${this.project}/rules` +
+      '?rule_types=a/b,mab&archived=false&environments=production&page_window=1&per_page=1';
+
+    let items = [];
+
+    while(true) {
+      const response = await this.makeRequest(`${this.fxBaseUrl}${url}`);
+      console.log(response);
+      if (response.items) {
+        items = [...items, ...response.items];
+      }
+      if (response.next_url) {
+        ([url] = response.next_url);
+      } else {
+        break;
+      }
+    }
+    console.log(items);
+    return items;
+  };
+
+  getRule = async (flagKey, ruleKey) => {
+    return this.makeRequest(`${this.baseURL}/experiments/${experimentId}/results`);
+  }
+
   getExperimentResults = (experimentId) => {
-    return this.makeRequest(`/experiments/${experimentId}/results`);
+    return this.makeRequest(`${this.baseURL}/experiments/${experimentId}/results`);
   };
 
   getResultsUrl = (campaignUrl, experimentId) => {

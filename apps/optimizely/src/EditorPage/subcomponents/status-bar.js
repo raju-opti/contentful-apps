@@ -63,7 +63,7 @@ const checkStatuses = (statuses, experiment, variations, entries) => {
   if (experiment.status === 'running') {
     statuses[Status.StartExperiment] = true;
   }
-  if (variations) {
+  if (variations && experiment.variations) {
     const allAdded = variations.length === experiment.variations.length;
     statuses[Status.AddContent] = allAdded;
 
