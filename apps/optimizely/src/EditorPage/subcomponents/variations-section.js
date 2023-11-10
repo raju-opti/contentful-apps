@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import PropTypes from 'prop-types';
 import { css } from 'emotion';
 import {
@@ -12,6 +12,8 @@ import {
 import tokens from '@contentful/forma-36-tokens';
 import { ExperimentType } from './prop-types';
 import VariationItem from './variation-item';
+import { isFxProject } from '../../util';
+import { SDKContext, GlobalStateContext } from './all-context';
 
 const styles = {
   container: css({
@@ -39,6 +41,8 @@ Container.propTypes = {
 function mergeReferencesAndVariations(variationReferences, variations, meta) {
   const linkedReferences = Object.values(meta);
 
+  console.log(variations, typeof variations);
+
   const mappedVariations = variations.map((variation) => {
     const entryId = meta[variation.key];
     const reference = variationReferences.find((item) => item.sys.id === entryId);
@@ -56,6 +60,8 @@ function mergeReferencesAndVariations(variationReferences, variations, meta) {
 }
 
 export default function VariationsSection(props) {
+  const sdk = useContext(SDKContext);
+  
   if (!props.loaded) {
     return (
       <Container>
@@ -73,8 +79,8 @@ export default function VariationsSection(props) {
       </Container>
     );
   }
-
-  if (props.experiment.flag_key && !props.experiment.variations) {
+  
+  if (isFxProject(sdk) && !props.experiment.variations) {
     return (
       <Container>
          <Flex>

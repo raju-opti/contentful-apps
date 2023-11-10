@@ -15,6 +15,8 @@ import prepareReferenceInfo, { COMBINED_LINK_VALIDATION_CONFLICT } from './refer
 import useInterval from '@use-it/interval';
 import ConnectButton from '../ConnectButton';
 import { ProjectType } from '../constants';
+import { act } from '@testing-library/react';
+import { isFxProject } from '../util';
 
 const styles = {
   root: css({
@@ -55,6 +57,15 @@ const methods = (state) => {
     },
     setExperimentResults(id, results) {
       state.experimentsResults[id] = results;
+    },
+    setRuleDetails(id, variations, experimentId) {
+      const index = state.experiments.findIndex(
+        (experiment) => experiment.id.toString() === id.toString()
+      );
+      if (index != -1) {
+        state.experiments[index].variations = variations;
+        state.experiments[index].ruleExperimentId = experimentId;
+      }
     },
     updateExperiment(id, experiment) {
       const index = state.experiments.findIndex(
@@ -154,6 +165,16 @@ export default function EditorPage(props) {
     (experiment) => experiment.id.toString() === state.experimentId
   );
 
+  if (experiment && isFxProject(props.sdk) && !experiment.variations && state.loaded) {
+    props.client
+      .getRule(experiment.flag_key, experiment.key)
+      .then((rule) => {
+        console.log(rule);
+        actions.setRuleDetails(experiment.id, Object.values(rule.variations), rule.experiment_id);
+      })
+      .catch(() => {});
+  }
+
   /**
    * Fetch initial portion of data required to render initial state
    */
@@ -219,20 +240,12 @@ export default function EditorPage(props) {
     props.sdk.entry.fields.variations,
   ]);
 
-  /**
-   * fetch experiment variation and id for feature experimentation rules
-   */
-  useEffect(() => {
-    if (experiment && experiment.flag_key && !experiment.variations && state.loaded) {
-      props.client
-        .getVariations(experiment.flag_key)
-        .then((variations) => {
-          actions.setVariations(variations);
-          return variations;
-        })
-        .catch(() => {});
-    }
-  }, [experiment, experiment ? experiment.id : null]);
+  // /**
+  //  * fetch experiment variation and id for feature experimentation rules
+  //  */
+  // useEffect(() => {
+    
+  // }, [state.experimentId]);
 
   /**
    * Update title every time experiment is changed
@@ -249,8 +262,19 @@ export default function EditorPage(props) {
    */
   useEffect(() => {
     if (state.loaded && experiment) {
+      let experimentId;
+      if (experiment.flag_key) {
+        if (experiment.ruleExperimentId) {
+          experimentId = experiment.ruleExperimentId;
+        } else {
+          return;
+        }
+      } else {
+        experimentId = experiment.id;
+      }
+
       props.client
-        .getExperimentResults(experiment.id)
+        .getExperimentResults(experimentId)
         .then((results) => {
           actions.setExperimentResults(experiment.id, results);
           return results;

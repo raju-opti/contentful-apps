@@ -111,7 +111,7 @@ export default class OptimizelyClient {
   };
 
   getRule = async (flagKey, ruleKey) => {
-    return this.makeRequest(`${this.baseURL}/experiments/${experimentId}/results`);
+    return this.makeRequest(`${this.fxBaseUrl}/projects/${this.project}/flags/${flagKey}/environments/production/rules/${ruleKey}`);
   }
 
   getExperimentResults = (experimentId) => {
