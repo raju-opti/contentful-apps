@@ -1,5 +1,5 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/anchor-is-valid */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from 'emotion';
 import useMethods from 'use-methods';
@@ -58,13 +58,15 @@ const methods = (state) => {
     setExperimentResults(id, results) {
       state.experimentsResults[id] = results;
     },
-    setRuleDetails(id, variations, experimentId) {
+    setRuleDetails(id, variations, experimentId, campaignId) {
       const index = state.experiments.findIndex(
         (experiment) => experiment.id.toString() === id.toString()
       );
+
       if (index != -1) {
         state.experiments[index].variations = variations;
         state.experiments[index].ruleExperimentId = experimentId;
+        state.experiments[index].campaign_id = campaignId;
       }
     },
     updateExperiment(id, experiment) {
@@ -157,6 +159,14 @@ function isCloseToExpiration(expires) {
 }
 
 export default function EditorPage(props) {
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   const globalState = useMethods(methods, getInitialValue(props.sdk));
   const [state, actions] = globalState;
   const [showAuth, setShowAuth] = useState(isCloseToExpiration(props.expires));
@@ -164,17 +174,25 @@ export default function EditorPage(props) {
   const experiment = state.experiments.find(
     (experiment) => experiment.id.toString() === state.experimentId
   );
+  
+  /**
+   * Fetch rule variations and experiment id for FX projects
+   */
+  useEffect(() => {
+    if (experiment && isFxProject(props.sdk) && !experiment.variations) {
+      props.client
+        .getRule(experiment.flag_key, experiment.key)
+        .then((rule) => {
+          console.log(rule);
+          if (isMounted.current) {
+            actions.setRuleDetails(experiment.id, Object.values(rule.variations), rule.experiment_id, rule.layer_id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [state.experimentId, state.loaded]);
 
-  if (experiment && isFxProject(props.sdk) && !experiment.variations && state.loaded) {
-    props.client
-      .getRule(experiment.flag_key, experiment.key)
-      .then((rule) => {
-        console.log(rule);
-        actions.setRuleDetails(experiment.id, Object.values(rule.variations), rule.experiment_id);
-      })
-      .catch(() => {});
-  }
-
+  
   /**
    * Fetch initial portion of data required to render initial state
    */
@@ -240,13 +258,6 @@ export default function EditorPage(props) {
     props.sdk.entry.fields.variations,
   ]);
 
-  // /**
-  //  * fetch experiment variation and id for feature experimentation rules
-  //  */
-  // useEffect(() => {
-    
-  // }, [state.experimentId]);
-
   /**
    * Update title every time experiment is changed
    */
@@ -263,7 +274,7 @@ export default function EditorPage(props) {
   useEffect(() => {
     if (state.loaded && experiment) {
       let experimentId;
-      if (experiment.flag_key) {
+      if (isFxProject(props.sdk)) {
         if (experiment.ruleExperimentId) {
           experimentId = experiment.ruleExperimentId;
         } else {
@@ -287,8 +298,10 @@ export default function EditorPage(props) {
     if (!experiment) {
       return undefined;
     }
+
+    const experimentId = isFxProject(props.sdk) ? experiment.ruleExperimentId : experiment.id;
     return {
-      url: props.client.getResultsUrl(experiment.campaign_id, experiment.id),
+      url: props.client.getResultsUrl(experiment.campaign_id, experimentId),
       results: state.experimentsResults[experiment.id],
     };
   };
@@ -297,15 +310,9 @@ export default function EditorPage(props) {
    * Handlers
    */
 
-  // const onChangeExperiment = (value) => {
-  //   props.sdk.entry.fields.meta.setValue({});
-  //   props.sdk.entry.fields.experimentId.setValue(value.experimentId);
-  //   props.sdk.entry.fields.experimentKey.setValue(value.experimentKey);
-  // };
-
   const onChangeExperiment = (experiment) => {
     console.log('exp selected ', experiment);
-    if (props.sdk.parameters.installation.optimizelyProjectType === ProjectType.FeatureExperimentation) {
+    if (isFxProject(props.sdk)) {
       props.sdk.entry.fields.meta.setValue({});
       props.sdk.entry.fields.experimentId.setValue(experiment.id.toString());
       props.sdk.entry.fields.experimentKey.setValue(experiment.key);
@@ -418,6 +425,7 @@ export default function EditorPage(props) {
             experiment={experiment}
             variations={state.variations}
             entries={state.entries}
+            sdk = {props.sdk}
           />
           <SectionSplitter />
           {showAuth && (

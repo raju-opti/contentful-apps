@@ -5,6 +5,7 @@ import { Icon } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { Status } from './constants';
 import { getEntryStatus } from './utils';
+import { isFxProject } from '../../util';
 
 const styles = {
   note: css({
@@ -54,15 +55,16 @@ function StatusSeparator() {
   return <Icon className={styles.itemSeparator} icon="ChevronRight" size="small" color="muted" />;
 }
 
-const checkStatuses = (statuses, experiment, variations, entries) => {
+const checkStatuses = (statuses, experiment, variations, entries, sdk) => {
   if (!experiment) {
     return statuses;
   }
 
   statuses[Status.SelectExperiment] = true;
-  if (experiment.status === 'running') {
-    statuses[Status.StartExperiment] = true;
-  }
+
+  const isRunning = isFxProject(sdk) ? experiment.enabled : experiment.status === 'running';
+  statuses[Status.StartExperiment] = isRunning;
+
   if (variations && experiment.variations) {
     const allAdded = variations.length === experiment.variations.length;
     statuses[Status.AddContent] = allAdded;
@@ -93,7 +95,7 @@ export default function StatusBar(props) {
   };
 
   if (props.loaded) {
-    statuses = checkStatuses(statuses, props.experiment, props.variations, props.entries);
+    statuses = checkStatuses(statuses, props.experiment, props.variations, props.entries, props.sdk);
   }
 
   return (

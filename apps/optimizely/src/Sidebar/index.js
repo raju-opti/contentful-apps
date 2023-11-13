@@ -3,11 +3,20 @@ import PropTypes from 'prop-types';
 import { Button } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { css } from 'emotion';
+import { isFxProject } from '../util';
 
 const styles = {
   button: css({
     marginBottom: tokens.spacingS,
   }),
+};
+
+const getFlagUrl = (projectId, flagKey, ruleKey) => {
+  return `https://app.optimizely.com/v2/projects/${projectId}/flags/manage/${flagKey}/rules/production`;
+};
+
+const getAllFlagsUrl = (projectId) => {
+  return `https://app.optimizely.com/v2/projects/${projectId}/flags/list`;
 };
 
 const getExperimentUrl = (projectId, experimentId) => {
@@ -20,6 +29,8 @@ const getAllExperimentsUrl = (projectId) => {
 
 export default function Sidebar(props) {
   const [experimentId, setExperimentId] = useState(props.sdk.entry.fields.experimentId.getValue());
+  const flagKey = props.sdk.entry.fields.flagKey.getValue();
+
   const { parameters } = props.sdk;
 
   useEffect(() => {
@@ -47,7 +58,7 @@ export default function Sidebar(props) {
         isFullWidth
         className={styles.button}
         disabled={!experimentId}
-        href={getExperimentUrl(projectId, experimentId)}
+        href={isFxProject(props.sdk) ? getFlagUrl(projectId, flagKey) : getExperimentUrl(projectId, experimentId)}
         target="_blank"
         data-test-id="view-experiment">
         View in Optimizely
@@ -57,9 +68,9 @@ export default function Sidebar(props) {
         isFullWidth
         className={styles.button}
         target="_blank"
-        href={getAllExperimentsUrl(projectId)}
+        href={isFxProject(props.sdk) ? getAllFlagsUrl(projectId) : getAllExperimentsUrl(projectId)}
         data-test-id="view-all">
-        View all experiments
+        <>{`View all ${isFxProject(props.sdk) ? 'flags' : 'experiments'}`}</>
       </Button>
     </div>
   );
