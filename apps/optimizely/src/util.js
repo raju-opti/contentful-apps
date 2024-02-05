@@ -12,6 +12,19 @@ export const entryHasField = (entry, field) => {
   return !!entry.fields[field];
 };
 
+// export const checkAndGetField = (entry, field) => {
+//   if (entryHasField(entry, field)) {
+//     return entry.fields[field].getValue();
+//   }
+//   return undefined;
+// }
+
+// export const checkAndSetField = async (entry, field, value) => {
+//   if (entryHasField(entry, field)) {
+//     return entry.fields[field].setValue(value);
+//   }
+// }
+
 export const checkAndGetField = (entry, field) => {
   if (entryHasField(entry, field)) {
     return entry.fields[field].getValue();

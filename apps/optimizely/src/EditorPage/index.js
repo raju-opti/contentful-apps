@@ -15,9 +15,10 @@ import prepareReferenceInfo, { COMBINED_LINK_VALIDATION_CONFLICT } from './refer
 import useInterval from '@use-it/interval';
 import ConnectButton from '../ConnectButton';
 import { ProjectType, fieldNames } from '../constants';
-import { useLatest } from '../hook';
+import { useCmaClient, useLatest } from '../hook';
 import { VARIATION_CONTAINER_ID } from '../AppPage/constants';
 import {  checkAndGetField, checkAndSetField, randStr, isCloseToExpiration } from '../util';
+import { createClient } from 'contentful-management';
 
 const styles = {
   root: css({
@@ -49,10 +50,11 @@ const updatetFxRuleFields = (fxRule) => {
 const methods = (state) => {
   return {
     setInitialData({ 
-      isFx, primaryEnvironment, experiments, contentTypes, referenceInfo 
+      isFx, primaryEnvironment, defaultLocale, experiments, contentTypes, referenceInfo 
     }) {
       state.isFx = isFx;
       state.primaryEnvironment = primaryEnvironment;
+      state.defaultLocale = defaultLocale;
       state.experiments = experiments;
       state.contentTypes = contentTypes;
       state.referenceInfo = referenceInfo;
@@ -149,9 +151,126 @@ const getEntriesLinkedByIds = async (space, entryIds) => {
   return entriesRes;
 };
 
-// TODO: variation container might have missing fields if not reconfigured
-// TODO: installation param might have the projectType value missing
-// TODO: handle both cases
+const fetchInitialDataC = async (sdk, cma, client) => {
+  const { ids, locales } = sdk;
+
+  const { optimizelyProjectType, optimizelyProjectId } = sdk.parameters.installation;
+
+  let fsToFxMigrated = false;
+  let primaryEnvironment = '';
+
+  if (optimizelyProjectType !== ProjectType.FeatureExperimentation) {
+    const [project, environments] = await Promise.all([
+      client.getProject(optimizelyProjectId),
+      client.getProjectEnvironments(optimizelyProjectId),
+    ]);
+    if (project.is_flags_enabled) {
+      fsToFxMigrated = true;
+    }
+    environments.forEach((e) => {
+      if (e.is_primary) {
+        primaryEnvironment = e.key;
+      }
+    });
+  }
+
+  // update variation container content type if needed
+  if (fsToFxMigrated) {
+    const entryFields = cma.entry.fields.map((f) => f.id);
+    if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
+        || !entryFields.includes(fieldNames.revision)) {
+      const variationContainer = await cma.environment.getContentType(VARIATION_CONTAINER_ID);
+      if (!entryFields.includes(fieldNames.flagKey)) {
+        variationContainer.fields.push(
+          {
+            id: 'flagKey',
+            name: 'Flag Key',
+            type: 'Symbol',
+          },
+        );
+      }
+      if (!entryFields.includes(fieldNames.environment)) {
+        variationContainer.fields.push(
+          {
+            id: 'environment',
+            name: 'Environment Key',
+            type: 'Symbol',
+          },
+        );
+      }
+      
+      if (!entryFields.includes(fieldNames.revision)) {
+        variationContainer.fields.push({
+          id: 'revision',
+          name: 'Revision ID',
+          type: 'Symbol',
+          omitted: true,
+        });
+      }
+      await variationContainer.update();
+      // this will refresh the page and sdk.entry in the new page will have all variation container fields
+      // await sdk.navigator.openEntry(sdk.entry.getSys().id);
+    }
+  }
+
+
+  const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
+
+  const [contentTypesRes, entriesRes, experiments] = await Promise.all([
+    sdk.space.getContentTypes({ order: 'name', limit: 1000 }),
+    getEntriesLinkedByIds(sdk.space, ids.entry),
+    isFx ? client.getRules() : client.getExperiments(),
+  ]);
+
+
+  const experimentKey = checkAndGetField(cma.entry, fieldNames.experimentKey);
+  const isNewEntry = !experimentKey
+
+  console.log(isFx, isNewEntry);
+  //update entry with environment and flagKey if needed
+  if (isFx && !isNewEntry) {
+    let environment = checkAndGetField(cma.entry, fieldNames.environment);
+    let flagKey = checkAndGetField(cma.entry, fieldNames.flagKey);
+    let revision = checkAndGetField(cma.entry, fieldNames.revision);
+
+    centry.fields[fieldNames.environment] = { 'en-US' : environment };
+    centry.fields[fieldNames.flagKey] = { 'en-US' : flagKey };;
+    // centry.fields[fieldNames.revision]['en-US'] = revision;
+
+    // if (!environment || !flagKey || !revision) {
+    //   if (!environment) environment = primaryEnvironment;
+    //   const rule = experiments.find((e) => 
+    //     e.key === experimentKey && e.environment_key === environment
+    //   );
+
+    //   console.log(rule, environment, 'rulee');
+    //   if (rule) {
+    //     flagKey = rule.flag_key;
+    //     entry.fields.flagKey.setValue(flagKey);
+    //     entry.fields.environment.setValue(environment);
+    //     entry.fields.revision.setValue(randStr());
+    //   }
+    // }
+    const res = await centry.update();
+    console.log('update res', res);
+  }
+
+  return {
+    isFx,
+    primaryEnvironment,
+    experiments,
+    contentTypes: contentTypesRes.items,
+    defaultLocale,
+    referenceInfo: prepareReferenceInfo({
+      contentTypes: contentTypesRes.items,
+      entries: entriesRes.items,
+      variationContainerId: ids.entry,
+      variationContainerContentTypeId: ids.contentType,
+      defaultLocale: locales.default,
+    }),
+  };
+};
+
 const fetchInitialData = async (sdk, client) => {
   const { space, ids, locales, entry } = sdk;
 
@@ -210,9 +329,32 @@ const fetchInitialData = async (sdk, client) => {
       }
       await space.updateContentType(variationContainer);
       // this will refresh the page and sdk.entry in the new page will have all variation container fields
-      await sdk.navigator.openEntry(sdk.entry.getSys().id);
+      // await sdk.navigator.openEntry(sdk.entry.getSys().id);
     }
   }
+
+  // const cma = createClient(
+  //   { apiAdapter: sdk.cmaAdapter },
+  //   {
+  //     type: 'plain',
+  //     defaults: {
+  //       environmentId: sdk.ids.environment,
+  //       spaceId: sdk.ids.space,
+  //     },
+  //   }
+  // );
+
+  // const centry = await cma.entry.get({ entryId: sdk.entry.getSys().id });
+  // console.log(centry);
+
+  const cma = createClient(
+    { apiAdapter: sdk.cmaAdapter },
+  )
+  
+  const cspace = await cma.getSpace(sdk.ids.space)
+  const environment = await cspace.getEnvironment(sdk.ids.environment)
+  const centry = await environment.getEntry(sdk.entry.getSys().id);
+
 
   const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
 
@@ -233,20 +375,26 @@ const fetchInitialData = async (sdk, client) => {
     let flagKey = checkAndGetField(entry, fieldNames.flagKey);
     let revision = checkAndGetField(entry, fieldNames.revision);
 
-    if (!environment || !flagKey || !revision) {
-      if (!environment) environment = primaryEnvironment;
-      const rule = experiments.find((e) => 
-        e.key === experimentKey && e.environment_key === environment
-      );
+    centry.fields[fieldNames.environment] = { 'en-US' : environment };
+    centry.fields[fieldNames.flagKey] = { 'en-US' : flagKey };;
+    // centry.fields[fieldNames.revision]['en-US'] = revision;
 
-      console.log(rule, environment, 'rulee');
-      if (rule) {
-        flagKey = rule.flag_key;
-        entry.fields.flagKey.setValue(flagKey);
-        entry.fields.environment.setValue(environment);
-        entry.fields.revision.setValue(randStr());
-      }
-    }
+    // if (!environment || !flagKey || !revision) {
+    //   if (!environment) environment = primaryEnvironment;
+    //   const rule = experiments.find((e) => 
+    //     e.key === experimentKey && e.environment_key === environment
+    //   );
+
+    //   console.log(rule, environment, 'rulee');
+    //   if (rule) {
+    //     flagKey = rule.flag_key;
+    //     entry.fields.flagKey.setValue(flagKey);
+    //     entry.fields.environment.setValue(environment);
+    //     entry.fields.revision.setValue(randStr());
+    //   }
+    // }
+    const res = await centry.update();
+    console.log('update res', res);
   }
 
   return {
@@ -254,6 +402,7 @@ const fetchInitialData = async (sdk, client) => {
     primaryEnvironment,
     experiments,
     contentTypes: contentTypesRes.items,
+    defaultLocale,
     referenceInfo: prepareReferenceInfo({
       contentTypes: contentTypesRes.items,
       entries: entriesRes.items,
@@ -268,6 +417,7 @@ const fetchInitialData = async (sdk, client) => {
 //   const _10minutes = 600000;
 //   return parseInt(expires, 10) - Date.now() <= _10minutes;
 // }
+
 
 export default function EditorPage(props) {
   const globalState = useMethods(methods, getInitialValue(props.sdk));
@@ -344,25 +494,44 @@ export default function EditorPage(props) {
     actions
   ]);
 
+  const [ cmaDone, cma, cmaError ] = useCmaClient(props.sdk, 10);
   /**
    * Fetch initial portion of data required to render initial state
    */
   useEffect(() => {
-    fetchInitialData(props.sdk, props.client)
-      .then((data) => {
-        if (data.isFx) {
-          data.experiments.forEach((experiment) => {
-            updatetFxRuleFields(experiment);
-          });
-        }
-        actions.setInitialData(data);
-        return data;
-      })
-      .catch((err) => {
-        console.log(err);
+    let isActive = true;
+
+    if (cmaDone) {
+      if (cmaError) {
         actions.setError('Unable to load initial data');
-      });
-  }, [actions, props.client, props.sdk]);
+        return;
+      }
+      const client = getLatestClient();
+      fetchInitialDataC(props.sdk, cma, client)
+        .then((data) => {
+          console.log(data);
+        });
+    }
+
+    // fetchInitialData(props.sdk, props.client)
+    //   .then((data) => {
+    //     if (data.isFx) {
+    //       data.experiments.forEach((experiment) => {
+    //         updatetFxRuleFields(experiment);
+    //       });
+    //     }
+    //     actions.setInitialData(data);
+    //     return data;
+    //   })
+    //   .catch((err) => {
+    //     console.log(err);
+    //     actions.setError('Unable to load initial data');
+    //   });
+
+      return () => {
+        isActive = false;
+      }
+  }, [actions, getLatestClient, props.sdk, cmaDone, cma, cmaError]);
 
   /**
    * Pulling current experiment every 5s to get new status and variations

@@ -21,3 +21,4 @@ build/*
 
 # VS Code
 .vscode
+clean.mjs
