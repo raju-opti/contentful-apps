@@ -205,12 +205,15 @@ const fetchInitialData = async (sdk, client) => {
           id: 'revision',
           name: 'Revision ID',
           type: 'Symbol',
-          omitted: true,
+          // omitted: true,
         });
       }
       await space.updateContentType(variationContainer);
+      console.log('befor navig .....');
       // this will refresh the page and sdk.entry in the new page will have all variation container fields
-      await sdk.navigator.openEntry(sdk.entry.getSys().id);
+      sdk.navigator.openEntry(sdk.entry.getSys().id);
+      await wait(10000);
+      console.log('after navig .....');
     }
   }
 
