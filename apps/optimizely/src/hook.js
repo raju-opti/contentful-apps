@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { createClient } from 'contentful-management';
 
 export const useLatest = (value) => {
@@ -14,31 +14,42 @@ export const useLatest = (value) => {
 }
 
 export const useCmaClient = (sdk, retry = 0) => {
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(0);
+  const [prevSdk, setSdk] = useState(sdk);
+
   const resRef = useRef({});
   const errRef = useRef(null);
+  
+  if (sdk !== prevSdk) {
+    setDone(false);
+    setSdk(sdk);
+  }
 
   useEffect(() => {
     let isActive = true;
 
     const init = async () => {
+      resRef.current = null;
+      errRef.current = null;
       const cma = createClient(
         { apiAdapter: sdk.cmaAdapter },
       )
       try {
         const space = await cma.getSpace(sdk.ids.space)
         const environment = await space.getEnvironment(sdk.ids.environment)
+        console.log(sdk.entry.getSys().id);
         const entry = await environment.getEntry(sdk.entry.getSys().id);
         if (isActive) {
           resRef.current = { space, environment, entry };
           setDone(true);
         }
       } catch (err) {
+        console.log(err);
         if (retry == -1) init();
         else if (retry--) {
           init();
         } else {
-          errRef.current(err);
+          errRef.current = err;
           setDone(true);
         }
       }

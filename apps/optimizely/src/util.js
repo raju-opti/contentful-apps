@@ -12,12 +12,12 @@ export const entryHasField = (entry, field) => {
   return !!entry.fields[field];
 };
 
-// export const checkAndGetField = (entry, field) => {
-//   if (entryHasField(entry, field)) {
-//     return entry.fields[field].getValue();
-//   }
-//   return undefined;
-// }
+export const checkAndGetField = (entry, field) => {
+  if (entryHasField(entry, field)) {
+    return entry.fields[field].getValue();
+  }
+  return undefined;
+}
 
 // export const checkAndSetField = async (entry, field, value) => {
 //   if (entryHasField(entry, field)) {
@@ -25,11 +25,14 @@ export const entryHasField = (entry, field) => {
 //   }
 // }
 
-export const checkAndGetField = (entry, field) => {
-  if (entryHasField(entry, field)) {
-    return entry.fields[field].getValue();
-  }
-  return undefined;
+export const getCmaField = (entry, field) => {
+  let val = undefined;
+  entry.fields.forEach((f) => {
+    if (f.id === field) {
+      val = 'test';
+    }
+  });
+  return val;
 }
 
 export const checkAndSetField = async (entry, field, value) => {

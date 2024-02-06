@@ -19,6 +19,7 @@ import { useCmaClient, useLatest } from '../hook';
 import { VARIATION_CONTAINER_ID } from '../AppPage/constants';
 import {  checkAndGetField, checkAndSetField, randStr, isCloseToExpiration } from '../util';
 import { createClient } from 'contentful-management';
+import { act } from '@testing-library/react';
 
 const styles = {
   root: css({
@@ -50,11 +51,10 @@ const updatetFxRuleFields = (fxRule) => {
 const methods = (state) => {
   return {
     setInitialData({ 
-      isFx, primaryEnvironment, defaultLocale, experiments, contentTypes, referenceInfo 
+      isFx, primaryEnvironment, experiments, contentTypes, referenceInfo 
     }) {
       state.isFx = isFx;
       state.primaryEnvironment = primaryEnvironment;
-      state.defaultLocale = defaultLocale;
       state.experiments = experiments;
       state.contentTypes = contentTypes;
       state.referenceInfo = referenceInfo;
@@ -100,6 +100,25 @@ const methods = (state) => {
     },
   };
 };
+
+const entryValueGetter = (locale) => {
+  return (entry, field) => {
+    if (entry.fields[field]) {
+      return entry.fields[field][locale];
+    }
+    return undefined;
+  }
+}
+
+const entryValueSetter = (locale) => {
+  return (entry, field, value) => {
+    if (!entry.fields[field]) {
+      entry.fields[field] = {};
+    }
+
+    entry.fields[field][locale] = value;
+  }
+}
 
 const getInitialValue = (sdk) => ({
   loaded: false,
@@ -176,9 +195,8 @@ const fetchInitialDataC = async (sdk, cma, client) => {
 
   // update variation container content type if needed
   if (fsToFxMigrated) {
-    const entryFields = cma.entry.fields.map((f) => f.id);
-    if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
-        || !entryFields.includes(fieldNames.revision)) {
+    const entryFields = Object.keys(sdk.entry.fields);
+    if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)) {
       const variationContainer = await cma.environment.getContentType(VARIATION_CONTAINER_ID);
       if (!entryFields.includes(fieldNames.flagKey)) {
         variationContainer.fields.push(
@@ -198,21 +216,14 @@ const fetchInitialDataC = async (sdk, cma, client) => {
           },
         );
       }
-      
-      if (!entryFields.includes(fieldNames.revision)) {
-        variationContainer.fields.push({
-          id: 'revision',
-          name: 'Revision ID',
-          type: 'Symbol',
-          omitted: true,
-        });
-      }
+
+      console.log(variationContainer);
+
       await variationContainer.update();
       // this will refresh the page and sdk.entry in the new page will have all variation container fields
       // await sdk.navigator.openEntry(sdk.entry.getSys().id);
     }
   }
-
 
   const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
 
@@ -222,37 +233,39 @@ const fetchInitialDataC = async (sdk, cma, client) => {
     isFx ? client.getRules() : client.getExperiments(),
   ]);
 
+  const defaultLocale = locales.default;
+  const getEntryValue = entryValueGetter(defaultLocale);
+  const setEntryValue = entryValueSetter(defaultLocale);
 
-  const experimentKey = checkAndGetField(cma.entry, fieldNames.experimentKey);
+  const experimentKey = getEntryValue(cma.entry, fieldNames.experimentKey);
   const isNewEntry = !experimentKey
 
   console.log(isFx, isNewEntry);
   //update entry with environment and flagKey if needed
   if (isFx && !isNewEntry) {
-    let environment = checkAndGetField(cma.entry, fieldNames.environment);
-    let flagKey = checkAndGetField(cma.entry, fieldNames.flagKey);
-    let revision = checkAndGetField(cma.entry, fieldNames.revision);
+    // let environment = checkAndGetField(cma.entry, fieldNames.environment);
+    // let flagKey = checkAndGetField(cma.entry, fieldNames.flagKey);
+    // let revision = checkAndGetField(cma.entry, fieldNames.revision);
+    let environment = getEntryValue(cma.entry, fieldNames.environment);
+    let flagKey = getEntryValue(cma.entry, fieldNames.flagKey);
 
-    centry.fields[fieldNames.environment] = { 'en-US' : environment };
-    centry.fields[fieldNames.flagKey] = { 'en-US' : flagKey };;
-    // centry.fields[fieldNames.revision]['en-US'] = revision;
 
-    // if (!environment || !flagKey || !revision) {
-    //   if (!environment) environment = primaryEnvironment;
-    //   const rule = experiments.find((e) => 
-    //     e.key === experimentKey && e.environment_key === environment
-    //   );
+    if (!environment || !flagKey) {
+      if (!environment) environment = primaryEnvironment;
+      const rule = experiments.find((e) => 
+        e.key === experimentKey && e.environment_key === environment
+      );
 
-    //   console.log(rule, environment, 'rulee');
-    //   if (rule) {
-    //     flagKey = rule.flag_key;
-    //     entry.fields.flagKey.setValue(flagKey);
-    //     entry.fields.environment.setValue(environment);
-    //     entry.fields.revision.setValue(randStr());
-    //   }
-    // }
-    const res = await centry.update();
-    console.log('update res', res);
+      if (rule) {
+        flagKey = rule.flag_key;
+        setEntryValue(cma.entry, fieldNames.flagKey, flagKey);
+        setEntryValue(cma.entry, fieldNames.environment, flagKey);
+        // entry.fields.flagKey.setValue(flagKey);
+        // entry.fields.environment.setValue(environment);
+        // entry.fields.revision.setValue(randStr());
+        await cma.entry.update();
+      }
+    }
   }
 
   return {
@@ -260,7 +273,6 @@ const fetchInitialDataC = async (sdk, cma, client) => {
     primaryEnvironment,
     experiments,
     contentTypes: contentTypesRes.items,
-    defaultLocale,
     referenceInfo: prepareReferenceInfo({
       contentTypes: contentTypesRes.items,
       entries: entriesRes.items,
@@ -271,147 +283,150 @@ const fetchInitialDataC = async (sdk, cma, client) => {
   };
 };
 
-const fetchInitialData = async (sdk, client) => {
-  const { space, ids, locales, entry } = sdk;
+// const fetchInitialData = async (sdk, client) => {
+//   const { space, ids, locales, entry } = sdk;
 
-  const { optimizelyProjectType, optimizelyProjectId } = sdk.parameters.installation;
+//   const { optimizelyProjectType, optimizelyProjectId } = sdk.parameters.installation;
 
-  let fsToFxMigrated = false;
-  let primaryEnvironment = '';
+//   let fsToFxMigrated = false;
+//   let primaryEnvironment = '';
 
-  if (optimizelyProjectType !== ProjectType.FeatureExperimentation) {
-    const [project, environments] = await Promise.all([
-      client.getProject(optimizelyProjectId),
-      client.getProjectEnvironments(optimizelyProjectId),
-    ]);
-    if (project.is_flags_enabled) {
-      fsToFxMigrated = true;
-    }
-    environments.forEach((e) => {
-      if (e.is_primary) {
-        primaryEnvironment = e.key;
-      }
-    });
-  }
+//   if (optimizelyProjectType !== ProjectType.FeatureExperimentation) {
+//     const [project, environments] = await Promise.all([
+//       client.getProject(optimizelyProjectId),
+//       client.getProjectEnvironments(optimizelyProjectId),
+//     ]);
+//     if (project.is_flags_enabled) {
+//       fsToFxMigrated = true;
+//     }
+//     environments.forEach((e) => {
+//       if (e.is_primary) {
+//         primaryEnvironment = e.key;
+//       }
+//     });
+//   }
 
-  // update variation container content type if needed
-  if (fsToFxMigrated) {
-    const entryFields = Object.keys(entry.fields);
-    if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
-        || !entryFields.includes(fieldNames.revision)) {
-      const variationContainer = await space.getContentType(VARIATION_CONTAINER_ID);
-      if (!entryFields.includes(fieldNames.flagKey)) {
-        variationContainer.fields.push(
-          {
-            id: 'flagKey',
-            name: 'Flag Key',
-            type: 'Symbol',
-          },
-        );
-      }
-      if (!entryFields.includes(fieldNames.environment)) {
-        variationContainer.fields.push(
-          {
-            id: 'environment',
-            name: 'Environment Key',
-            type: 'Symbol',
-          },
-        );
-      }
+//   // update variation container content type if needed
+//   if (fsToFxMigrated) {
+//     const entryFields = Object.keys(entry.fields);
+//     if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
+//         || !entryFields.includes(fieldNames.revision)) {
+//       const variationContainer = await space.getContentType(VARIATION_CONTAINER_ID);
+//       if (!entryFields.includes(fieldNames.flagKey)) {
+//         variationContainer.fields.push(
+//           {
+//             id: 'flagKey',
+//             name: 'Flag Key',
+//             type: 'Symbol',
+//           },
+//         );
+//       }
+//       if (!entryFields.includes(fieldNames.environment)) {
+//         variationContainer.fields.push(
+//           {
+//             id: 'environment',
+//             name: 'Environment Key',
+//             type: 'Symbol',
+//           },
+//         );
+//       }
       
-      if (!entryFields.includes(fieldNames.revision)) {
-        variationContainer.fields.push({
-          id: 'revision',
-          name: 'Revision ID',
-          type: 'Symbol',
-          omitted: true,
-        });
-      }
-      await space.updateContentType(variationContainer);
-      // this will refresh the page and sdk.entry in the new page will have all variation container fields
-      // await sdk.navigator.openEntry(sdk.entry.getSys().id);
-    }
-  }
+//       if (!entryFields.includes(fieldNames.revision)) {
+//         variationContainer.fields.push({
+//           id: 'revision',
+//           name: 'Revision ID',
+//           type: 'Symbol',
+//           omitted: true,
+//         });
+//       }
+//       await space.updateContentType(variationContainer);
+//       // this will refresh the page and sdk.entry in the new page will have all variation container fields
+//       // await sdk.navigator.openEntry(sdk.entry.getSys().id);
+//     }
+//   }
 
-  // const cma = createClient(
-  //   { apiAdapter: sdk.cmaAdapter },
-  //   {
-  //     type: 'plain',
-  //     defaults: {
-  //       environmentId: sdk.ids.environment,
-  //       spaceId: sdk.ids.space,
-  //     },
-  //   }
-  // );
+//   // const cma = createClient(
+//   //   { apiAdapter: sdk.cmaAdapter },
+//   //   {
+//   //     type: 'plain',
+//   //     defaults: {
+//   //       environmentId: sdk.ids.environment,
+//   //       spaceId: sdk.ids.space,
+//   //     },
+//   //   }
+//   // );
 
-  // const centry = await cma.entry.get({ entryId: sdk.entry.getSys().id });
-  // console.log(centry);
+//   // const centry = await cma.entry.get({ entryId: sdk.entry.getSys().id });
+//   // console.log(centry);
 
-  const cma = createClient(
-    { apiAdapter: sdk.cmaAdapter },
-  )
+//   // const cma = createClient(
+//   //   { apiAdapter: sdk.cmaAdapter },
+//   // )
   
-  const cspace = await cma.getSpace(sdk.ids.space)
-  const environment = await cspace.getEnvironment(sdk.ids.environment)
-  const centry = await environment.getEntry(sdk.entry.getSys().id);
+//   // const cspace = await cma.getSpace(sdk.ids.space)
+//   // const environment = await cspace.getEnvironment(sdk.ids.environment)
+//   // const centry = await environment.getEntry(sdk.entry.getSys().id);
+
+//   const et = await sdk.space.getEntry(sdk.entry.getSys().id);
+//   console.log('reaad entry ', et);
 
 
-  const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
+//   const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
 
-  const [contentTypesRes, entriesRes, experiments] = await Promise.all([
-    space.getContentTypes({ order: 'name', limit: 1000 }),
-    getEntriesLinkedByIds(space, ids.entry),
-    isFx ? client.getRules() : client.getExperiments(),
-  ]);
+//   const [contentTypesRes, entriesRes, experiments] = await Promise.all([
+//     space.getContentTypes({ order: 'name', limit: 1000 }),
+//     getEntriesLinkedByIds(space, ids.entry),
+//     isFx ? client.getRules() : client.getExperiments(),
+//   ]);
 
 
-  const experimentKey = checkAndGetField(entry, fieldNames.experimentKey);
-  const isNewEntry = !experimentKey
+//   const experimentKey = checkAndGetField(entry, fieldNames.experimentKey);
+//   const isNewEntry = !experimentKey
 
-  console.log(isFx, isNewEntry);
-  //update entry with environment and flagKey if needed
-  if (isFx && !isNewEntry) {
-    let environment = checkAndGetField(entry, fieldNames.environment);
-    let flagKey = checkAndGetField(entry, fieldNames.flagKey);
-    let revision = checkAndGetField(entry, fieldNames.revision);
+//   console.log(isFx, isNewEntry);
+//   //update entry with environment and flagKey if needed
+//   if (isFx && !isNewEntry) {
+//     let environment = checkAndGetField(entry, fieldNames.environment);
+//     let flagKey = checkAndGetField(entry, fieldNames.flagKey);
+//     let revision = checkAndGetField(entry, fieldNames.revision);
 
-    centry.fields[fieldNames.environment] = { 'en-US' : environment };
-    centry.fields[fieldNames.flagKey] = { 'en-US' : flagKey };;
-    // centry.fields[fieldNames.revision]['en-US'] = revision;
+//     centry.fields[fieldNames.environment] = { 'en-US' : environment };
+//     centry.fields[fieldNames.flagKey] = { 'en-US' : flagKey };;
+//     // centry.fields[fieldNames.revision]['en-US'] = revision;
 
-    // if (!environment || !flagKey || !revision) {
-    //   if (!environment) environment = primaryEnvironment;
-    //   const rule = experiments.find((e) => 
-    //     e.key === experimentKey && e.environment_key === environment
-    //   );
+//     // if (!environment || !flagKey || !revision) {
+//     //   if (!environment) environment = primaryEnvironment;
+//     //   const rule = experiments.find((e) => 
+//     //     e.key === experimentKey && e.environment_key === environment
+//     //   );
 
-    //   console.log(rule, environment, 'rulee');
-    //   if (rule) {
-    //     flagKey = rule.flag_key;
-    //     entry.fields.flagKey.setValue(flagKey);
-    //     entry.fields.environment.setValue(environment);
-    //     entry.fields.revision.setValue(randStr());
-    //   }
-    // }
-    const res = await centry.update();
-    console.log('update res', res);
-  }
+//     //   console.log(rule, environment, 'rulee');
+//     //   if (rule) {
+//     //     flagKey = rule.flag_key;
+//     //     entry.fields.flagKey.setValue(flagKey);
+//     //     entry.fields.environment.setValue(environment);
+//     //     entry.fields.revision.setValue(randStr());
+//     //   }
+//     // }
+//     const res = await centry.update();
+//     console.log('update res', res);
+//   }
 
-  return {
-    isFx,
-    primaryEnvironment,
-    experiments,
-    contentTypes: contentTypesRes.items,
-    defaultLocale,
-    referenceInfo: prepareReferenceInfo({
-      contentTypes: contentTypesRes.items,
-      entries: entriesRes.items,
-      variationContainerId: ids.entry,
-      variationContainerContentTypeId: ids.contentType,
-      defaultLocale: locales.default,
-    }),
-  };
-};
+//   return {
+//     isFx,
+//     primaryEnvironment,
+//     experiments,
+//     contentTypes: contentTypesRes.items,
+//     defaultLocale,
+//     referenceInfo: prepareReferenceInfo({
+//       contentTypes: contentTypesRes.items,
+//       entries: entriesRes.items,
+//       variationContainerId: ids.entry,
+//       variationContainerContentTypeId: ids.contentType,
+//       defaultLocale: locales.default,
+//     }),
+//   };
+// };
 
 // function isCloseToExpiration(expires) {
 //   const _10minutes = 600000;
@@ -420,6 +435,7 @@ const fetchInitialData = async (sdk, client) => {
 
 
 export default function EditorPage(props) {
+  console.log(props.sdk, props.sdk.entry);
   const globalState = useMethods(methods, getInitialValue(props.sdk));
   const [state, actions] = globalState;
   const [showAuth, setShowAuth] = useState(isCloseToExpiration(props.expires));
@@ -449,6 +465,9 @@ export default function EditorPage(props) {
   const hasExperiment = !!experiment;
   const flagKey = experiment && experiment.flag_key;
   const hasVariations = experiment && experiment.variations;
+
+  const getEntryValue = entryValueGetter(props.sdk.locales.default);
+  const setEntryValue = entryValueSetter(props.sdk.locales.default);
 
   /**
    * Fetch rule variations and experiment id for FX projects
@@ -507,9 +526,19 @@ export default function EditorPage(props) {
         return;
       }
       const client = getLatestClient();
-      fetchInitialDataC(props.sdk, cma, client)
+      fetchInitialDataC(props.sdk, cma, props.client)
         .then((data) => {
-          console.log(data);
+          if (data.isFx) {
+            data.experiments.forEach((experiment) => {
+              updatetFxRuleFields(experiment);
+            });
+          }
+          actions.setInitialData(data);
+          return data;
+        })
+        .catch((err) => {
+          console.log(err);
+          actions.setError('Unable to load initial data');
         });
     }
 
@@ -610,8 +639,9 @@ export default function EditorPage(props) {
     // );
     const unsubsribeExperimentChange = props.sdk.entry.fields.experimentKey.onValueChanged(
       (data) => {
-        const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);
-        actions.setExperiment(data, environment);
+        console.log('=============== exp change ================ ', data);
+        // const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);
+        // actions.setExperiment(data, environment);
       }
     );
     const unsubscribeVariationsChange = props.sdk.entry.fields.variations.onValueChanged((data) => {
@@ -673,17 +703,31 @@ export default function EditorPage(props) {
   /**
    * Handlers
    */
-
-  const onChangeExperiment = (experiment) => {
-    props.sdk.entry.fields.meta.setValue({});
-    checkAndSetField(props.sdk.entry, fieldNames.flagKey, experiment.flag_key);
-    checkAndSetField(props.sdk.entry, fieldNames.environment, experiment.environment_key);
+  const onChangeExperiment = async (experiment) => {
+    setEntryValue(cma.entry, fieldNames.meta, {});
+    setEntryValue(cma.entry, fieldNames.experimentKey, experiment.key);
     const experimentId = (isFx ? experiment.experiment_id : experiment.id) || '';
-    if (experimentId) {
-      props.sdk.entry.fields.experimentId.setValue(experimentId.toString());
+    setEntryValue(cma.entry, fieldNames.environment, experimentId.toString());    
+    if (isFx) {
+      setEntryValue(cma.entry, fieldNames.flagKey, experiment.flag_key);
+      setEntryValue(cma.entry, fieldNames.environment, experiment.environment_key);
     }
-    props.sdk.entry.fields.experimentKey.setValue(experiment.key);
-    checkAndSetField(props.sdk.entry, fieldNames.revision, randStr());
+    try {
+      await cma.entry.update();
+      actions.setExperiment(experiment.key, experiment.environment_key);
+    } catch (err) {
+      actions.setError('Error updating entry, please retry');
+    }
+
+    // props.sdk.entry.fields.meta.setValue({});
+    // checkAndSetField(props.sdk.entry, fieldNames.flagKey, experiment.flag_key);
+    // checkAndSetField(props.sdk.entry, fieldNames.environment, experiment.environment_key);
+    // const experimentId = (isFx ? experiment.experiment_id : experiment.id) || '';
+    // if (experimentId) {
+    //   props.sdk.entry.fields.experimentId.setValue(experimentId.toString());
+    // }
+    // props.sdk.entry.fields.experimentKey.setValue(experiment.key);
+    // checkAndSetField(props.sdk.entry, fieldNames.revision, randStr());
   };
 
   const onLinkVariation = async (variation) => {

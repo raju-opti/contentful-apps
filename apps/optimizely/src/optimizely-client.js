@@ -18,7 +18,6 @@ export default class OptimizelyClient {
       },
     });
 
-    console.log('rsponse ', this.accessToken, response);
     if (response.ok) {
       return await response.json();
     }
@@ -34,7 +33,6 @@ export default class OptimizelyClient {
 
     for (let i = 1; i <= MAX_REQUESTS; i++) {
       const results = await this.makeRequest(this._getItemsUrl(PER_PAGE, i, item));
-      console.log(results);
       items = [...items, ...results];
       if (results.length < PER_PAGE) {
         break;
@@ -82,7 +80,6 @@ export default class OptimizelyClient {
   }
 
   getProject = async (projectId) => {
-    console.log('req project', projectId);
     return this.makeRequest(`${this.baseURL}/projects/${projectId}`);
   };
 
@@ -119,7 +116,6 @@ export default class OptimizelyClient {
   };
 
   getRule = async (flagKey, ruleKey, environment) => {
-    console.log('ruling ...', ruleKey, environment);
     return this.makeRequest(`${this.fxBaseUrl}/projects/${this.project}/flags/${flagKey}/environments/${environment}/rules/${ruleKey}`);
   }
 
