@@ -37,7 +37,6 @@ export const useCmaClient = (sdk, retry = 0) => {
       try {
         const space = await cma.getSpace(sdk.ids.space)
         const environment = await space.getEnvironment(sdk.ids.environment)
-        console.log(sdk.entry.getSys().id);
         const entry = await environment.getEntry(sdk.entry.getSys().id);
         if (isActive) {
           resRef.current = { space, environment, entry };

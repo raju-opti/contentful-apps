@@ -74,8 +74,6 @@ export default class App extends React.Component {
     const token = window.localStorage.getItem(TOKEN_KEY);
     const expires = window.localStorage.getItem(TOKEN_EXPIRATION);
 
-    console.log(expires, )
-
     this.state = {
       client: token && !isCloseToExpiration(expires) ? this.makeClient(token) : null,
       accessToken: token,
@@ -132,7 +130,6 @@ export default class App extends React.Component {
     const { client } = state;
     const { location, parameters } = sdk;
 
-    console.log(parameters.installation);
     
     if (location.is(locations.LOCATION_APP_CONFIG)) {
       return (

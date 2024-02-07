@@ -104,16 +104,12 @@ export default class AppPage extends React.Component {
   }
 
   configureApp = async () => {
-    console.log('configuring app with state');
-
     if (!this.props.accessToken) {
       this.props.sdk.notifier.error(`You must be connected to Optimizely to configure the app.`);
       return false;
     }
   
     const { config } = this.state;
-
-    console.log('config is ', config);
 
     if (!config.optimizelyProjectId) {
       this.props.sdk.notifier.error(
@@ -133,8 +129,6 @@ export default class AppPage extends React.Component {
       const flagIdField = variationContainerContentType.fields.find((f) => f.id === 'flagId');
       const environmentField = variationContainerContentType.fields.find((f) => f.id === 'environment');
       const revisionField = variationContainerContentType.fields.find((f) => f.id === 'revision');
-
-      console.log(flagKeyField, flagIdField, environmentField);
 
       if (!flagKeyField || !flagIdField || !environmentField) {
         await this.updateVariationContainerContentType(
@@ -219,20 +213,9 @@ export default class AppPage extends React.Component {
           type: 'Symbol',
         },
         {
-          id: 'flagId',
-          name: 'Flag ID',
-          type: 'Symbol',
-        },
-        {
           id: 'environment',
           name: 'Environment Key',
           type: 'Symbol',
-        },
-        {
-          id: 'revision',
-          name: 'Revision ID',
-          type: 'Symbol',
-          omitted: true,
         },
       ],
     });
@@ -241,7 +224,6 @@ export default class AppPage extends React.Component {
   };
 
   updateVariationContainerContentType = async (variationContainer, opt) => {
-    console.log('updating ', variationContainer, opt);
     const { addFlagId, addFlagKey, addEnvironment, addRevision } = opt;
     if (addFlagKey) {
       variationContainer.fields.push(

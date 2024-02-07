@@ -217,8 +217,6 @@ const fetchInitialDataC = async (sdk, cma, client) => {
         );
       }
 
-      console.log(variationContainer);
-
       await variationContainer.update();
       // this will refresh the page and sdk.entry in the new page will have all variation container fields
       // await sdk.navigator.openEntry(sdk.entry.getSys().id);
@@ -240,7 +238,6 @@ const fetchInitialDataC = async (sdk, cma, client) => {
   const experimentKey = getEntryValue(cma.entry, fieldNames.experimentKey);
   const isNewEntry = !experimentKey
 
-  console.log(isFx, isNewEntry);
   //update entry with environment and flagKey if needed
   if (isFx && !isNewEntry) {
     // let environment = checkAndGetField(cma.entry, fieldNames.environment);
@@ -435,7 +432,6 @@ const fetchInitialDataC = async (sdk, cma, client) => {
 
 
 export default function EditorPage(props) {
-  console.log(props.sdk, props.sdk.entry);
   const globalState = useMethods(methods, getInitialValue(props.sdk));
   const [state, actions] = globalState;
   const [showAuth, setShowAuth] = useState(isCloseToExpiration(props.expires));
@@ -650,12 +646,30 @@ export default function EditorPage(props) {
     const unsubscribeMetaChange = props.sdk.entry.fields.meta.onValueChanged((data) => {
       actions.setMeta(data || {});
     });
+    const sysUn = props.sdk.entry.onSysChanged(
+      async (data) => {
+        if (cmaDone) {
+          console.log('=============== sys change ================ ', cma.entry.sys, data);
+          if (cma.entry.sys.version < data.version) {
+            cma.entry = await cma.environment.getEntry(props.sdk.ids.entry);
+          }
+        }
+
+
+        // const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);
+        // actions.setExperiment(data, environment);
+      }
+    );
     return () => {
       unsubsribeExperimentChange();
       unsubscribeVariationsChange();
       unsubscribeMetaChange();
+      sysUn();
+
     };
   }, [
+    cmaDone,
+    cma,
     actions,
     props.sdk.entry
   ]);
@@ -704,18 +718,34 @@ export default function EditorPage(props) {
    * Handlers
    */
   const onChangeExperiment = async (experiment) => {
+    // const cma = createClient(
+    //   { apiAdapter: props.sdk.cmaAdapter },
+    // )
+    // console.log(props.sdk.ids);
+
+    // const space = await cma.getSpace(props.sdk.ids.space);
+    // const env = await space.getEnvironment(props.sdk.ids.environment);
+    // const entry = await env.getEntry(props.sdk.ids.entry);
+    // console.log(await env.getContentType(VARIATION_CONTAINER_ID));
     setEntryValue(cma.entry, fieldNames.meta, {});
     setEntryValue(cma.entry, fieldNames.experimentKey, experiment.key);
     const experimentId = (isFx ? experiment.experiment_id : experiment.id) || '';
-    setEntryValue(cma.entry, fieldNames.environment, experimentId.toString());    
+    setEntryValue(cma.entry, fieldNames.experimentId, experimentId.toString());    
     if (isFx) {
       setEntryValue(cma.entry, fieldNames.flagKey, experiment.flag_key);
       setEntryValue(cma.entry, fieldNames.environment, experiment.environment_key);
     }
+
     try {
-      await cma.entry.update();
+      const updatedEntry = await cma.entry.update();
+      if (cma.entry.sys.version < updatedEntry.sys.version) {
+        if (cma.entry.sys.version < updatedEntry.sys.version) {
+          cma.entry = updatedEntry;
+        }
+      } 
       actions.setExperiment(experiment.key, experiment.environment_key);
     } catch (err) {
+      console.log('entry updte error', err);
       actions.setError('Error updating entry, please retry');
     }
 
