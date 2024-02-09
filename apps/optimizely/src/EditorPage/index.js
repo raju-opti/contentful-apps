@@ -312,8 +312,8 @@ export default function EditorPage(props) {
   // const experiment = state.experiments.find(
   //   (experiment) => experiment.id.toString() === state.selectedId
   // );
-
-  const { isFx, reloadNeeded, primaryEnvironment, experimentKey, environment } = state;
+  const { sdk, client } = props;
+  const { isFx, primaryEnvironment, experimentKey, environment } = state;
   const experimentEnvironment = environment || primaryEnvironment;
 
   const experiment = state.experiments.find(
@@ -340,13 +340,13 @@ export default function EditorPage(props) {
   useEffect(() => {
     let isActive = true;
     
-    const client = getLatestClient();
+    // const client = getLatestClient();
 
-    if (hasExperiment && isFx && !hasVariations) {
+    if (hasExperiment && isFx && !hasVariations && client) {
       client
         .getRule(flagKey, experimentKey, experimentEnvironment)
         .then((rule) => {
-          const sdk = getLatestSdk();
+          // const sdk = getLatestSdk();
           // update experiment id field of the entry
           if (sdk.entry.fields.experimentKey.getValue() === experimentKey
             && (!sdk.entry.fields.environment.getValue() || sdk.entry.fields.environment.getValue() === experimentEnvironment)) {
@@ -373,8 +373,8 @@ export default function EditorPage(props) {
     experimentEnvironment,
     flagKey,
     hasVariations,
-    getLatestClient,
-    getLatestSdk,
+    client,
+    sdk,
     actions
   ]);
 
@@ -382,21 +382,23 @@ export default function EditorPage(props) {
    * Fetch initial portion of data required to render initial state
    */
   useEffect(() => {
-    fetchInitialData(props.sdk, props.client)
-      .then((data) => {
-        if (data.isFx) {
-          data.experiments.forEach((experiment) => {
-            updatetFxRuleFields(experiment);
-          });
-        }
-        actions.setInitialData(data);
-        return data;
-      })
-      .catch((err) => {
-        console.log(err);
-        actions.setError('Unable to load initial data');
-      });
-  }, [actions, props.client, props.sdk]);
+    if (!state.loaded && client) {
+      fetchInitialData(sdk, client)
+        .then((data) => {
+          if (data.isFx) {
+            data.experiments.forEach((experiment) => {
+              updatetFxRuleFields(experiment);
+            });
+          }
+          actions.setInitialData(data);
+          return data;
+        })
+        .catch((err) => {
+          console.log(err);
+          actions.setError('Unable to load initial data');
+        });
+    }
+  }, [actions, state.loaded, client, sdk]);
 
   /**
    * Pulling current experiment every 5s to get new status and variations
@@ -404,7 +406,7 @@ export default function EditorPage(props) {
   useEffect(() => {
     let isActive = true;
     const interval = setInterval(() => {
-      if (hasExperiment) {
+      if (hasExperiment && client) {
         const client = getLatestClient();
 
         if (isFx) {
@@ -440,9 +442,9 @@ export default function EditorPage(props) {
     experimentEnvironment,
     experimentId,
     flagKey,
-    getLatestClient,
+    client,
     actions
-  ]);  
+  ]);
 
   // useInterval(() => {
   //   if (state.experimentId) {
@@ -510,9 +512,7 @@ export default function EditorPage(props) {
    * Fetch experiment results every time experiment is changed
    */
   useEffect(() => {
-    const client = getLatestClient();
-
-    if (state.loaded && hasExperiment && experimentId) {
+    if (state.loaded && hasExperiment && experimentId && client) {
       client
         .getExperimentResults(experimentId)
         .then((results) => {
@@ -521,7 +521,7 @@ export default function EditorPage(props) {
         })
         .catch(() => {});
     }
-  }, [actions, hasExperiment, experimentId, getLatestClient, state.loaded]);
+  }, [actions, hasExperiment, experimentId, client, state.loaded]);
 
   const getExperimentResults = (experiment) => {
     if (!experiment) {

@@ -24,6 +24,7 @@ export default class OptimizelyClient {
 
     // reauthing should hopefully fix the issue
     this.onReauth();
+    return Promise.reject(new Error(`request failed for url: ${url} with status: ${response.status}`));
   };
 
   _getItemsPerPage = async (item) => {
