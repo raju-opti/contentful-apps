@@ -45,16 +45,22 @@ export default function Sidebar(props) {
   const experimentId = checkAndGetField(props.sdk.entry, fieldNames.experimentId);
   const flagKey = checkAndGetField(props.sdk.entry, fieldNames.flagKey);
   const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);
+  console.log('sidebar', projectType, flagKey, environment, experimentKey, experimentId);
 
   useEffect(() => {
     let isActive = true;
-    (async () => {
+
+    if (projectType !== null) {
+      return;
+    }
+
+    const fetchProjectData = async () => {
       if (optimizelyProjectType === ProjectType.FeatureExperimentation) {
         setProjectType(ProjectType.FeatureExperimentation);
         return;
       }
 
-      while(true) {
+      while(isActive && props.client) {
         try {
           const project = await props.client.getProject(optimizelyProjectId);
           if (!isActive) return;
@@ -65,12 +71,13 @@ export default function Sidebar(props) {
 
         }
       }
-    })();
+    };
+    fetchProjectData();
 
     return () => {
       isActive = false;
     }
-  }, []);
+  }, [props.client, props.sdk]);
 
   useEffect(() => {
     props.sdk.window.startAutoResizer();
@@ -84,11 +91,13 @@ export default function Sidebar(props) {
   useEffect(() => {
     let unsubscribe = () => {};
     if (props.sdk.entry.fields.revision) {
-      unsubscribe = props.sdk.entry.fields.revision.onValueChanged(() => {
+      unsubscribe = props.sdk.entry.fields.revision.onValueChanged((v) => {
+        console.log('revision value ', v);
         forceUpdate()
       });
     } else {
       unsubscribe = props.sdk.entry.fields.experimentKey.onValueChanged(() => {
+        console.log('key value ', v);
         forceUpdate()
       });
     }

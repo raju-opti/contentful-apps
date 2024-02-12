@@ -80,6 +80,10 @@ export default class App extends React.Component {
       expires,
     };
 
+    window.addEventListener('storage', (e) => {
+      console.log('storage', e);
+    });
+
     this.listener = window.addEventListener(
       'message',
       (event) => {
@@ -93,8 +97,9 @@ export default class App extends React.Component {
         if (`${origin}${window.location.pathname}` !== redirectUrl || !token) {
           return;
         }
-        
+        console.log('sajving token');
         window.localStorage.setItem(TOKEN_KEY, token);
+        console.log('sajving exp');
         window.localStorage.setItem(TOKEN_EXPIRATION, expires);
         this.setState({ client: this.makeClient(data.token), accessToken: token, expires });
       },

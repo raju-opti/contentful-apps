@@ -1,5 +1,5 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/anchor-is-valid */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from 'emotion';
 import useMethods from 'use-methods';
@@ -17,7 +17,8 @@ import ConnectButton from '../ConnectButton';
 import { ProjectType, fieldNames } from '../constants';
 import { useLatest } from '../hook';
 import { VARIATION_CONTAINER_ID } from '../AppPage/constants';
-import {  checkAndGetField, checkAndSetField, randStr, isCloseToExpiration } from '../util';
+import {  checkAndGetField, checkAndSetField, randStr, isCloseToExpiration, resolvablePromise, entryHasFxFields } from '../util';
+import { getResultsUrl } from '../optimizely-client';
 
 const styles = {
   root: css({
@@ -151,10 +152,8 @@ const getEntriesLinkedByIds = async (space, entryIds) => {
   return entriesRes;
 };
 
-// TODO: variation container might have missing fields if not reconfigured
-// TODO: installation param might have the projectType value missing
-// TODO: handle both cases
-const fetchInitialData = async (sdk, client) => {
+const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
+  console.log('fetching inital data ====>', document.referrer);
   const { space, ids, locales, entry } = sdk;
 
   const { optimizelyProjectType, optimizelyProjectId } = sdk.parameters.installation;
@@ -179,10 +178,11 @@ const fetchInitialData = async (sdk, client) => {
 
   // update variation container content type if needed
   if (fsToFxMigrated) {
-    const entryFields = Object.keys(entry.fields);
-    if (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
-        || !entryFields.includes(fieldNames.revision)) {
+    if (!entryHasFxFields(entry)) {
       const variationContainer = await space.getContentType(VARIATION_CONTAINER_ID);
+      console.log('varcon', variationContainer.fields);
+      // await wait(999999);
+
       const variationContainerFields = variationContainer.fields.map((f) => f.id);
 
       let updateNeeded = false;
@@ -223,9 +223,21 @@ const fetchInitialData = async (sdk, client) => {
         await space.updateContentType(variationContainer);
       }
 
-      console.log('reopening entry');
-      await sdk.navigator.openEntry(sdk.entry.getSys().id);
+      console.log('sliding in entry');
+      sdk.navigator.openEntry(sdk.entry.getSys().id, { slideIn: true });
+      const slideInLevel = await Promise.race([slideInLevelPromise, new Promise((resolve) => {
+        setTimeout(() => resolve(-1), 5000);
+      })]);
+
+      console.log('slide level ', slideInLevel);
+
+      // if entry is in the base slive level, reopen in the same browser window
+      if (slideInLevel === 0) {
+        console.log('entry in base level, reopening');
+        await sdk.navigator.openEntry(sdk.entry.getSys().id);
+      }
     }
+    
   }
 
   const isFx = optimizelyProjectType === ProjectType.FeatureExperimentation || fsToFxMigrated;
@@ -236,13 +248,10 @@ const fetchInitialData = async (sdk, client) => {
     isFx ? client.getRules() : client.getExperiments(),
   ]);
 
-
   const experimentKey = checkAndGetField(entry, fieldNames.experimentKey);
   const isNewEntry = !experimentKey
 
-  const entryFields = Object.keys(entry.fields);
-  let reloadNeeded = isFx && (!entryFields.includes(fieldNames.flagKey) || !entryFields.includes(fieldNames.environment)
-    || !entryFields.includes(fieldNames.revision));
+  let reloadNeeded = isFx && !entryHasFxFields(entry);
 
   //update entry with environment and flagKey if needed
   if (isFx) {
@@ -312,8 +321,9 @@ export default function EditorPage(props) {
   // const experiment = state.experiments.find(
   //   (experiment) => experiment.id.toString() === state.selectedId
   // );
-
-  const { isFx, reloadNeeded, primaryEnvironment, experimentKey, environment } = state;
+  const { sdk, client } = props;
+  console.log('re rendering EditorPage ...');
+  const { isFx, primaryEnvironment, experimentKey, environment } = state;
   const experimentEnvironment = environment || primaryEnvironment;
 
   const experiment = state.experiments.find(
@@ -334,19 +344,27 @@ export default function EditorPage(props) {
   const flagKey = experiment && experiment.flag_key;
   const hasVariations = experiment && experiment.variations;
 
+  const slideInLevelRef = useRef(resolvablePromise());
+
+  useEffect(() => {
+    sdk.navigator.onSlideInNavigation((d) => {
+      slideInLevelRef.current.resolve(d.oldSlideLevel);
+    });
+  }, [sdk, slideInLevelRef]);
+
   /**
    * Fetch rule variations and experiment id for FX projects
    */
   useEffect(() => {
     let isActive = true;
     
-    const client = getLatestClient();
+    // const client = getLatestClient();
 
-    if (hasExperiment && isFx && !hasVariations) {
+    if (hasExperiment && isFx && !hasVariations && client) {
       client
         .getRule(flagKey, experimentKey, experimentEnvironment)
         .then((rule) => {
-          const sdk = getLatestSdk();
+          // const sdk = getLatestSdk();
           // update experiment id field of the entry
           if (sdk.entry.fields.experimentKey.getValue() === experimentKey
             && (!sdk.entry.fields.environment.getValue() || sdk.entry.fields.environment.getValue() === experimentEnvironment)) {
@@ -373,8 +391,8 @@ export default function EditorPage(props) {
     experimentEnvironment,
     flagKey,
     hasVariations,
-    getLatestClient,
-    getLatestSdk,
+    client,
+    sdk,
     actions
   ]);
 
@@ -382,21 +400,23 @@ export default function EditorPage(props) {
    * Fetch initial portion of data required to render initial state
    */
   useEffect(() => {
-    fetchInitialData(props.sdk, props.client)
-      .then((data) => {
-        if (data.isFx) {
-          data.experiments.forEach((experiment) => {
-            updatetFxRuleFields(experiment);
-          });
-        }
-        actions.setInitialData(data);
-        return data;
-      })
-      .catch((err) => {
-        console.log(err);
-        actions.setError('Unable to load initial data');
-      });
-  }, [actions, props.client, props.sdk]);
+    if (!state.loaded && client) {
+      fetchInitialData(sdk, client, slideInLevelRef.current.promise)
+        .then((data) => {
+          if (data.isFx) {
+            data.experiments.forEach((experiment) => {
+              updatetFxRuleFields(experiment);
+            });
+          }
+          actions.setInitialData(data);
+          return data;
+        })
+        .catch((err) => {
+          console.log(err);
+          actions.setError('Unable to load initial data');
+        });
+    }
+  }, [actions, state.loaded, client, sdk, slideInLevelRef]);
 
   /**
    * Pulling current experiment every 5s to get new status and variations
@@ -404,9 +424,7 @@ export default function EditorPage(props) {
   useEffect(() => {
     let isActive = true;
     const interval = setInterval(() => {
-      if (hasExperiment) {
-        const client = getLatestClient();
-
+      if (hasExperiment && client) {
         if (isFx) {
           client
             .getRule(flagKey, experimentKey, experimentEnvironment)
@@ -440,9 +458,9 @@ export default function EditorPage(props) {
     experimentEnvironment,
     experimentId,
     flagKey,
-    getLatestClient,
+    client,
     actions
-  ]);  
+  ]);
 
   // useInterval(() => {
   //   if (state.experimentId) {
@@ -510,9 +528,7 @@ export default function EditorPage(props) {
    * Fetch experiment results every time experiment is changed
    */
   useEffect(() => {
-    const client = getLatestClient();
-
-    if (state.loaded && hasExperiment && experimentId) {
+    if (state.loaded && hasExperiment && experimentId && client) {
       client
         .getExperimentResults(experimentId)
         .then((results) => {
@@ -521,7 +537,7 @@ export default function EditorPage(props) {
         })
         .catch(() => {});
     }
-  }, [actions, hasExperiment, experimentId, getLatestClient, state.loaded]);
+  }, [actions, hasExperiment, experimentId, client, state.loaded]);
 
   const getExperimentResults = (experiment) => {
     if (!experiment) {
@@ -530,7 +546,7 @@ export default function EditorPage(props) {
 
     const experimentId = isFx ? experiment.experiment_id : experiment.id;
     return {
-      url: props.client.getResultsUrl(experiment.campaign_id, experimentId),
+      url: getResultsUrl(sdk.parameters.installation.optimizelyProjectId, experiment.campaign_id, experimentId),
       results: state.experimentsResults[experimentId],
     };
   };
