@@ -46,11 +46,12 @@ const styles = {
 };
 
 function getPercentOfTraffic(isFxProject, variation) {
+  let traffic;
   if (isFxProject) {
-    return Math.floor(variation.percentage_included / 100);
+    return (variation.percentage_included / 100.0).toFixed(2);
   }
 
-  return Math.floor(variation.weight) / 100;
+  return (variation.weight / 100.0).toFixed(2);
 }
 
 function useEntryCard(id) {

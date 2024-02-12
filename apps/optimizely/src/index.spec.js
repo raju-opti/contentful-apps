@@ -16,6 +16,14 @@ let VALID_FIELDS = false;
 
 function mockSdk() {
   return {
+    navigator: {
+      openEntry: () => {},
+      openNewEntry: () => {},
+      onSlideInNavigation: () => {},
+    },
+    dialogs: {
+      selectSingleEntry: () => {}
+    },
     parameters: {
       installation: {
         optimizelyProjectId: PROJECT_ID,
@@ -39,6 +47,14 @@ function mockSdk() {
           getValue: jest.fn(() => 'exp123'),
           onValueChanged: jest.fn(() => jest.fn()),
         },
+        experimentKey: {
+          getValue: jest.fn(() => 'exp123'),
+          onValueChanged: jest.fn(() => jest.fn()),
+        },
+        experimentTitle: {
+          getValue: jest.fn(() => 'exp123'),
+          onValueChanged: jest.fn(() => jest.fn()),
+        },
         meta: {
           getValue: jest.fn(),
           onValueChanged: jest.fn(() => jest.fn()),
@@ -48,6 +64,9 @@ function mockSdk() {
           onValueChanged: jest.fn(() => jest.fn()),
         },
       },
+      getSys: () => {
+        id: '123'
+      }
     },
     contentType: {
       sys: {

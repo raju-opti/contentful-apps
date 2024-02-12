@@ -50,3 +50,7 @@ export const resolvablePromise = () => {
 
   return { promise, resolve, reject };
 };
+
+export const wait = (ms) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};

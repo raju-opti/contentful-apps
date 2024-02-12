@@ -33,10 +33,6 @@ const styles = {
   }),
 };
 
-const wait = (ms) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
 const updatetFxRuleFields = (fxRule) => {
   const variations = fxRule.variations && Object.values(fxRule.variations);
   const campaignId = fxRule.layer_id;
@@ -347,10 +343,12 @@ export default function EditorPage(props) {
   const slideInLevelRef = useRef(resolvablePromise());
 
   useEffect(() => {
-    sdk.navigator.onSlideInNavigation((d) => {
-      slideInLevelRef.current.resolve(d.oldSlideLevel);
-    });
-  }, [sdk, slideInLevelRef]);
+    if (!state.loaded) {
+      sdk.navigator.onSlideInNavigation((d) => {
+        slideInLevelRef.current.resolve(d.oldSlideLevel);
+      }); 
+    }
+  }, [sdk, slideInLevelRef, state.loaded]);
 
   /**
    * Fetch rule variations and experiment id for FX projects
@@ -720,7 +718,7 @@ export default function EditorPage(props) {
 
 EditorPage.propTypes = {
   openAuth: PropTypes.func.isRequired,
-  client: PropTypes.any.isRequired,
+  client: PropTypes.any,
   expires: PropTypes.string.isRequired,
   sdk: PropTypes.shape({
     space: PropTypes.object.isRequired,

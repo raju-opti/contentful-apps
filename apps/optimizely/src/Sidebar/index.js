@@ -6,6 +6,7 @@ import { css } from 'emotion';
 import { isFxProject } from '../util';
 import {  checkAndGetField, checkAndSetField } from '../util';
 import { ProjectType, fieldNames } from '../constants';
+import { wait } from '@testing-library/react';
 
 const styles = {
   button: css({
@@ -68,7 +69,7 @@ export default function Sidebar(props) {
           setProjectType(type);
           return;
         } catch (err) {
-
+          await wait(1000);
         }
       }
     };
@@ -96,7 +97,7 @@ export default function Sidebar(props) {
         forceUpdate()
       });
     } else {
-      unsubscribe = props.sdk.entry.fields.experimentKey.onValueChanged(() => {
+      unsubscribe = props.sdk.entry.fields.experimentKey.onValueChanged((v) => {
         console.log('key value ', v);
         forceUpdate()
       });
@@ -155,5 +156,5 @@ Sidebar.propTypes = {
       }),
     }),
   }).isRequired,
-  client: PropTypes.any.isRequired,
+  client: PropTypes.any,
 };
