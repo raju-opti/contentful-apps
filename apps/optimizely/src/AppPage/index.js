@@ -7,6 +7,7 @@ import { Heading, Typography, Paragraph } from '@contentful/forma-36-react-compo
 import Connect from './Connect';
 import Config from './Config';
 import OptimizelyLogo from './OptimizelyLogo';
+// import OptimizelyLogo from '../optimizely-logo';
 import SectionSplitter from '../EditorPage/subcomponents/section-splitter';
 import { VARIATION_CONTAINER_ID } from './constants';
 
@@ -229,7 +230,7 @@ export default class AppPage extends React.Component {
   };
 
   updateVariationContainerContentType = async (variationContainer, opt) => {
-    const { addFlagId, addFlagKey, addEnvironment, addRevision } = opt;
+    const { addFlagKey, addEnvironment, addRevision } = opt;
     if (addFlagKey) {
       variationContainer.fields.push(
         {
@@ -392,7 +393,7 @@ export default class AppPage extends React.Component {
           )}
         </div>
         <div className={styles.logo}>
-          <OptimizelyLogo />
+          <OptimizelyLogo width={60} height={60}/>
         </div>
       </>
     );

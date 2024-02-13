@@ -10,7 +10,6 @@ import {
 } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { ExperimentType } from './prop-types';
-import { isFxProject } from '../../util';
 
 const styles = {
   heading: css({

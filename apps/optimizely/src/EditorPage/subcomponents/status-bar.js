@@ -5,7 +5,6 @@ import { Icon } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { Status } from './constants';
 import { getEntryStatus } from './utils';
-import { isFxProject } from '../../util';
 
 const styles = {
   note: css({

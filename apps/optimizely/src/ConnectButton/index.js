@@ -5,6 +5,8 @@ import { Button } from '@contentful/forma-36-react-components';
 
 import OptimizelyLogo from './OptimizelyLogo';
 
+// import OptimizelyLogo from '../optimizely-logo';
+
 const styles = {
   connect: css({
     display: 'flex',
@@ -24,7 +26,9 @@ export default function ConnectButton({ openAuth }) {
       testId="connect-button"
       isFullWidth
       buttonType="naked">
-      <OptimizelyLogo />
+      <OptimizelyLogo width={"216"}
+      height={"42"}
+      viewBox="0 0 216 42"/>
     </Button>
   );
 }

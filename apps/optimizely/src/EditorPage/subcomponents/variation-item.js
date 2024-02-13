@@ -16,7 +16,6 @@ import { SDKContext, GlobalStateContext } from './all-context';
 import VariationSelect from './variation-select';
 import VariationStats from './variations-stats';
 import { getAdditionalEntryInformation } from './utils';
-import { isFxProject } from '../../util';
 
 const styles = {
   variationContainer: css({
@@ -141,8 +140,6 @@ SelectedReference.propTypes = {
 };
 
 export default function VariationItem(props) {
-  const sdk = useContext(SDKContext);
-
   const variation = props.variation;
 
   return (

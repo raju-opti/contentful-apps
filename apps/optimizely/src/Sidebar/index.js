@@ -3,8 +3,7 @@ import PropTypes from 'prop-types';
 import { Button } from '@contentful/forma-36-react-components';
 import tokens from '@contentful/forma-36-tokens';
 import { css } from 'emotion';
-import { isFxProject } from '../util';
-import {  checkAndGetField, checkAndSetField } from '../util';
+import {  checkAndGetField } from '../util';
 import { ProjectType, fieldNames } from '../constants';
 import { wait } from '@testing-library/react';
 
@@ -14,9 +13,6 @@ const styles = {
   }),
 };
 
-const getFlagUrl = (projectId, flagKey) => {
-  return `https://app.optimizely.com/v2/projects/${projectId}/flags/manage/${flagKey}/rules/production`;
-};
 
 const getRuleEditUrl = (projectId, flagKey, ruleKey, environment) => {
   return `https://app.optimizely.com/v2/projects/${projectId}/flags/manage/${flagKey}/rules/${environment}/edit/${ruleKey}`;
@@ -34,19 +30,14 @@ const getAllExperimentsUrl = (projectId) => {
   return `https://app.optimizely.com/v2/projects/${projectId}/experiments`;
 };
 
-const fetchProjectData = async (client, projectId) => {
-  
-}
-
 export default function Sidebar(props) {
-  const { optimizelyProjectId, optimizelyProjectType } = props.sdk.parameters.installation;
+  const { optimizelyProjectId } = props.sdk.parameters.installation;
   const [projectType, setProjectType] = useState(null);
 
   const experimentKey = checkAndGetField(props.sdk.entry, fieldNames.experimentKey);
   const experimentId = checkAndGetField(props.sdk.entry, fieldNames.experimentId);
   const flagKey = checkAndGetField(props.sdk.entry, fieldNames.flagKey);
   const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);
-  console.log('sidebar', projectType, flagKey, environment, experimentKey, experimentId);
 
   useEffect(() => {
     let isActive = true;
@@ -79,7 +70,7 @@ export default function Sidebar(props) {
     return () => {
       isActive = false;
     }
-  }, [props.client, props.sdk]);
+  }, [props.client, props.sdk, projectType]);
 
   useEffect(() => {
     props.sdk.window.startAutoResizer();
@@ -94,12 +85,10 @@ export default function Sidebar(props) {
     let unsubscribe = () => {};
     if (props.sdk.entry.fields.revision) {
       unsubscribe = props.sdk.entry.fields.revision.onValueChanged((v) => {
-        console.log('revision value ', v);
         forceUpdate()
       });
     } else {
       unsubscribe = props.sdk.entry.fields.experimentKey.onValueChanged((v) => {
-        console.log('key value ', v);
         forceUpdate()
       });
     }

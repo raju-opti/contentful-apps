@@ -15,7 +15,6 @@ import prepareReferenceInfo, { COMBINED_LINK_VALIDATION_CONFLICT } from './refer
 import useInterval from '@use-it/interval';
 import ConnectButton from '../ConnectButton';
 import { ProjectType, fieldNames } from '../constants';
-import { useLatest } from '../hook';
 import { VARIATION_CONTAINER_ID } from '../AppPage/constants';
 import {  checkAndGetField, checkAndSetField, randStr, isCloseToExpiration, resolvablePromise, entryHasFxFields } from '../util';
 import { getResultsUrl } from '../optimizely-client';
@@ -188,7 +187,6 @@ const updateVariationContainerForFx = async (sdk) => {
   }
 
   if (updateNeeded) {
-    console.log('updating variation container');
     await space.updateContentType(variationContainer);
   }
 }
@@ -222,7 +220,6 @@ const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
     if (!entryHasFxFields(entry)) {
       await updateVariationContainerForFx(sdk);
       
-      console.log('sliding in entry');
       // detect slide in level of the entry editor. If the variation contaier is not
       // at the base level, we cannnot reopen the entry in the same window because
       // it will remove the base entry editor.
@@ -231,10 +228,7 @@ const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
         setTimeout(() => resolve(-1), 5000);
       })]);
 
-      console.log('slide level ', slideInLevel);
-
       if (slideInLevel === 0) {
-        console.log('entry in base level, reopening');
         await sdk.navigator.openEntry(sdk.entry.getSys().id);
       }
     }
@@ -255,7 +249,6 @@ const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
   let reloadNeeded = isFx && !entryHasFxFields(entry);
 
   if (isFx) {
-    console.log('reload needed ...', reloadNeeded);
     if (reloadNeeded) {
         sdk.dialogs.openAlert({
           title: 'Action Required',
@@ -271,8 +264,6 @@ const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
       let flagKey = checkAndGetField(entry, fieldNames.flagKey);
       let revision = checkAndGetField(entry, fieldNames.revision);
       
-      console.log('values : ', environment, flagKey, revision);
-
       if (!environment || !flagKey || !revision) {
         if (!environment) environment = primaryEnvironment;
         const rule = experiments.find((e) => 
@@ -305,22 +296,12 @@ const fetchInitialData = async (sdk, client, slideInLevelPromise) => {
   };
 };
 
-// function isCloseToExpiration(expires) {
-//   const _10minutes = 600000;
-//   return parseInt(expires, 10) - Date.now() <= _10minutes;
-// }
-
 export default function EditorPage(props) {
   const globalState = useMethods(methods, getInitialValue(props.sdk));
   const [state, actions] = globalState;
   const [showAuth, setShowAuth] = useState(isCloseToExpiration(props.expires));
 
-  // const selectedId = state.selectedId;
-  // const experiment = state.experiments.find(
-  //   (experiment) => experiment.id.toString() === state.selectedId
-  // );
   const { sdk, client } = props;
-  console.log('re rendering EditorPage ...');
   const { isFx, primaryEnvironment, experimentKey, environment } = state;
   const experimentEnvironment = environment || primaryEnvironment;
 
@@ -369,13 +350,16 @@ export default function EditorPage(props) {
               return sdk.entry.fields.experimentId.setValue(rule.experiment_id.toString()).then(() => rule);
           }
           return rule;
-        }).then((rule) => {
+        })
+        .then((rule) => {
           if (isActive) {
             actions.updateFxExperimentRule(experimentKey, experimentEnvironment, rule);
           }
         })
         .catch((err) => {
-          actions.setError('Unable to load variations');
+          if (isActive) {
+            actions.setError('Unable to load variations');
+          }
         });
     }
 
@@ -414,8 +398,9 @@ export default function EditorPage(props) {
           }
         })
         .catch((err) => {
-          console.log(err);
-          actions.setError('Unable to load initial data');
+          if (isActive) {
+            actions.setError('Unable to load initial data');
+          }
         });
     }
     return () => {
@@ -469,18 +454,6 @@ export default function EditorPage(props) {
     actions
   ]);
 
-  // useInterval(() => {
-  //   if (state.experimentId) {
-  //     props.client
-  //       .getExperiment(state.experimentId)
-  //       .then((experiment) => {
-  //         actions.updateExperiment(state.experimentId, experiment);
-  //         return experiment;
-  //       })
-  //       .catch(() => {});
-  //   }
-  // }, 5000);
-
   /*
    * Poll to see if we need to show the reauth flow preemptively
    */
@@ -492,12 +465,6 @@ export default function EditorPage(props) {
    * Subscribe for changes in entry
    */
   useEffect(() => {
-    // const unsubsribeExperimentChange = props.sdk.entry.fields.experimentId.onValueChanged(
-    //   (data) => {
-    //     console.log('exp id change .. ', data);
-    //     actions.setSelectedId(data);
-    //   }
-    // );
     const unsubsribeExperimentChange = props.sdk.entry.fields.experimentKey.onValueChanged(
       (data) => {
         const environment = checkAndGetField(props.sdk.entry, fieldNames.environment);

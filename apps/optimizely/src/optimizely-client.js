@@ -13,11 +13,6 @@ export default class OptimizelyClient {
   }
 
   makeRequest = async (url) => {
-    console.log('request ', url, this.expires, Date.now());
-    if (this.expires < Date.now()) {
-      this.onReauth();
-      return Promise.reject(new Error('test reject'));
-    }
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

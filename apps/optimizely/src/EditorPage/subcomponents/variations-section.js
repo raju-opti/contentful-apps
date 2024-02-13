@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from 'emotion';
 import {
@@ -12,8 +12,6 @@ import {
 import tokens from '@contentful/forma-36-tokens';
 import { ExperimentType } from './prop-types';
 import VariationItem from './variation-item';
-import { isFxProject } from '../../util';
-import { SDKContext, GlobalStateContext } from './all-context';
 
 const styles = {
   container: css({
@@ -57,9 +55,7 @@ function mergeReferencesAndVariations(variationReferences, variations, meta) {
   return { mappedVariations, unmappedReferences };
 }
 
-export default function VariationsSection(props) {
-  const sdk = useContext(SDKContext);
-  
+export default function VariationsSection(props) {  
   if (!props.loaded) {
     return (
       <Container>
