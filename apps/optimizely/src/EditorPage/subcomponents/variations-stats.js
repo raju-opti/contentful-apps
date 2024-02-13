@@ -50,7 +50,7 @@ StatItem.propTypes = {
 };
 
 function getPercent(value) {
-  return value;
+  return value.toFixed(2);
   // return Math.floor(value * 1000) / 10;
 }
 

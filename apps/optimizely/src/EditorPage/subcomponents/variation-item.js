@@ -46,7 +46,6 @@ const styles = {
 };
 
 function getPercentOfTraffic(isFxProject, variation) {
-  let traffic;
   if (isFxProject) {
     return (variation.percentage_included / 100.0).toFixed(2);
   }

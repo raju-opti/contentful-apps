@@ -56,6 +56,7 @@ export default function Sidebar(props) {
     }
 
     const fetchProjectData = async () => {
+      const { optimizelyProjectId, optimizelyProjectType } = props.sdk.parameters.installation;
       if (optimizelyProjectType === ProjectType.FeatureExperimentation) {
         setProjectType(ProjectType.FeatureExperimentation);
         return;
