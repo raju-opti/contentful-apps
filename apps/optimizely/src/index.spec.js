@@ -199,6 +199,14 @@ describe('Optimizely App', () => {
     PROJECT_ID = '123';
     VALID_FIELDS = true;
     const sdk = mockSdk();
+    Storage.prototype.setItem = jest.fn();
+    Storage.prototype.getItem = () => {
+      return JSON.stringify({
+        optToken: 'token',
+        optExpire: Date.now() + 24 * 3600 * 1000,
+      });
+    };
+
 
     const { getByTestId } = render(<App sdk={sdk} />);
     expect(getByTestId('editor-page')).toMatchSnapshot();

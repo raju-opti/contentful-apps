@@ -74,6 +74,7 @@ export default class App extends React.Component {
 
     let token, expires;
     const credentials = window.localStorage.getItem(OPTI_CREDENTIALS);
+    console.log('opti cred >>>>>>>>>>', credentials);
     if (credentials) {
       const parsed = JSON.parse(credentials);
       token = parsed[TOKEN_KEY];
