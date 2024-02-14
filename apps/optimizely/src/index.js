@@ -41,8 +41,7 @@ if (window.location.hash) {
 const OPTIMIZELY_CLIENT_APP_ID = '15687650042';
 const HOST = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
 
-// const redirectUrl = HOST;
-const redirectUrl = 'https://optimizely.ctfapps.net/';
+const redirectUrl = HOST;
 
 const url = `https://app.optimizely.com/oauth2/authorize
 ?client_id=${OPTIMIZELY_CLIENT_APP_ID}
